@@ -343,7 +343,6 @@ static NSMutableArray *leafNode = nil;
 @interface MMFileDrawerController (Private)
 - (FilesOutlineView *)outlineView;
 - (void)pwdChanged:(NSNotification *)notification;
-- (void)updatePathComponentsPopup;
 - (void)changeWorkingDirectory:(NSString *)path;
 - (NSArray *)selectedItemPaths;
 - (void)openSelectedFilesInCurrentWindowWithLayout:(int)layout;
@@ -393,8 +392,12 @@ static NSMutableArray *leafNode = nil;
   [filesView addTableColumn:column];
   [filesView setOutlineTableColumn:column];
 
-  pathComponentsPopup = [[NSPopUpButton alloc] initWithFrame:NSMakeRect(0, 0, 0, 25)];
-  pathComponentsPopup.autoresizingMask = NSViewWidthSizable;
+  pathControl = [[[NSPathControl alloc] initWithFrame:NSMakeRect(0, 0, 0, 21)] autorelease];
+  pathControl.autoresizingMask = NSViewWidthSizable;
+  pathControl.pathStyle = NSPathStylePopUp;
+  
+  // NOTE: does this belong here?
+  [pathControl setURL:[NSURL fileURLWithPath:[rootItem fullPath]]];
 
   NSScrollView *scrollView = [[[NSScrollView alloc] initWithFrame:NSMakeRect(0, 25, 0, 0)] autorelease];
   [scrollView setHasHorizontalScroller:YES];
@@ -402,14 +405,14 @@ static NSMutableArray *leafNode = nil;
   [scrollView setAutohidesScrollers:YES];
   [scrollView setDocumentView:filesView];
 
-  scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable | NSViewMaxYMargin;
+  scrollView.frame = CGRectMake(0, pathControl.frame.size.height, 0, 0);
+  scrollView.autoresizingMask = NSViewWidthSizable | NSViewHeightSizable;
 
   [drawerView addSubview:scrollView];
-  [drawerView addSubview:pathComponentsPopup];
+  [drawerView addSubview:pathControl];
   [drawer setContentView:drawerView];
 
   [self setView:filesView];
-  [self updatePathComponentsPopup];
 
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(pwdChanged:)
@@ -434,10 +437,8 @@ static NSMutableArray *leafNode = nil;
     rootItem = nil;
   }
 
-  rootItem = [[FileSystemItem alloc] initWithPath:root
-                                           parent:nil
-                                              vim:[windowController vimController]];
-  [self updatePathComponentsPopup];
+  rootItem = [[FileSystemItem alloc] initWithPath:root parent:nil];
+  [pathControl setURL:[NSURL fileURLWithPath:root]];
   [(NSOutlineView *)[self view] expandItem:rootItem];
   [self watchRoot];
 }
@@ -549,32 +550,6 @@ static NSMutableArray *leafNode = nil;
   return nil;
 }
 
-- (void) updatePathComponentsPopup {
-  NSString *path = [rootItem fullPath];
-  NSFileManager *fileManager = [NSFileManager defaultManager];
-  NSMenu *menu = [[[NSMenu alloc] init] autorelease];
-
-  NSArray *pathComponents = [path pathComponents];
-  int i;
-  int pathLen = [pathComponents count];
-  for (i = pathLen; i > 0; i--) {
-    NSArray *subPathComponents = [pathComponents subarrayWithRange:NSMakeRange(0, i)];
-    NSString *subPath = [NSString pathWithComponents:subPathComponents];
-
-    NSMenuItem *item = [[[NSMenuItem alloc] initWithTitle:[fileManager displayNameAtPath:subPath] action:@selector(changeWorkingDirectoryToSelection:) keyEquivalent:@""] autorelease];
-    [item setTarget:self];
-    [item setRepresentedObject:subPath];
-
-    NSImage *icon = [[NSWorkspace sharedWorkspace] iconForFile:subPath];
-    [icon setSize:NSMakeSize(16, 16)];
-    [item setImage:icon];
-
-    [menu addItem:item];
-  }
-
-  [pathComponentsPopup setMenu:menu];
-  [pathComponentsPopup selectItemAtIndex:0];
-}
 
 // Data Source methods
 // ===================
@@ -914,10 +889,10 @@ static void change_occured(ConstFSEventStreamRef stream,
 - (void)dealloc {
   [[NSNotificationCenter defaultCenter] removeObserver:self];
 
-  [self unwatchRoot];
   [drawer release];
+  [pathControl release];
   [rootItem release];
-  [pathComponentsPopup release];
+  [self unwatchRoot];
 
   [super dealloc];
 }
