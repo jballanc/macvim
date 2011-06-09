@@ -526,7 +526,9 @@ static NSString *LEFT_KEY_CHAR, *RIGHT_KEY_CHAR, *DOWN_KEY_CHAR, *UP_KEY_CHAR;
     rootItem = nil;
   }
 
-  rootItem = [[FileSystemItem alloc] initWithPath:root parent:nil];
+  rootItem = [[FileSystemItem alloc] initWithPath:root
+                                           parent:nil
+                                              vim:[windowController vimController]];
   [pathControl setURL:[NSURL fileURLWithPath:root]];
   [(NSOutlineView *)[self view] expandItem:rootItem];
   [self watchRoot];
